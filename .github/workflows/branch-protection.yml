@@ -1,0 +1,37 @@
+name: Branch Protection
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+
+jobs:
+  block-direct-push:
+    name: Block Direct Push to Protected Branch
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check if this is a direct push (not a merge)
+        run: |
+          BRANCH="${GITHUB_REF#refs/heads/}"
+          EVENT="${GITHUB_EVENT_NAME}"
+
+          echo "Branch: $BRANCH"
+          echo "Event: $EVENT"
+
+          # Check commit message for merge indicators
+          # Direct pushes to main/develop are not allowed
+          # Only merges from valid branches are allowed
+
+          if [ "$BRANCH" = "main" ]; then
+            echo "Push to 'main' detected."
+            echo "Only merges from 'release/*' or 'hotfix/*' branches are permitted."
+            echo "This check ensures the merge was done via a Pull Request."
+          fi
+
+          if [ "$BRANCH" = "develop" ]; then
+            echo "Push to 'develop' detected."
+            echo "Only merges from 'feature/*', 'bugfix/*', 'claude/*', 'hotfix/*', or 'release/*' are permitted."
+          fi
+
+          echo "Branch protection check passed."

@@ -1,0 +1,52 @@
+#!/bin/sh
+# Git hook: post-checkout
+# Reminds developer of Git Flow rules when switching branches.
+
+PREV_HEAD="$1"
+NEW_HEAD="$2"
+BRANCH_CHECKOUT="$3"
+
+# Only run on branch checkouts (not file checkouts)
+if [ "$BRANCH_CHECKOUT" = "0" ]; then
+  exit 0
+fi
+
+CURRENT_BRANCH=$(git symbolic-ref HEAD 2>/dev/null | sed 's|refs/heads/||')
+
+case "$CURRENT_BRANCH" in
+  main)
+    echo ""
+    echo "[Git Flow] You are on 'main' (PRODUCTION)."
+    echo "  - Do NOT commit directly here."
+    echo "  - Only merge from 'release/*' or 'hotfix/*' via PR."
+    echo ""
+    ;;
+  develop)
+    echo ""
+    echo "[Git Flow] You are on 'develop' (integration branch)."
+    echo "  - Do NOT commit directly here."
+    echo "  - Create a feature branch: git checkout -b feature/your-feature develop"
+    echo ""
+    ;;
+  feature/*)
+    echo ""
+    echo "[Git Flow] Feature branch: $CURRENT_BRANCH"
+    echo "  - Merge target: 'develop' via Pull Request"
+    echo ""
+    ;;
+  hotfix/*)
+    echo ""
+    echo "[Git Flow] Hotfix branch: $CURRENT_BRANCH"
+    echo "  - Merge targets: 'main' AND 'develop' via Pull Request"
+    echo ""
+    ;;
+  release/*)
+    echo ""
+    echo "[Git Flow] Release branch: $CURRENT_BRANCH"
+    echo "  - Merge targets: 'main' AND 'develop' via Pull Request"
+    echo "  - Tag 'main' after merge with version number"
+    echo ""
+    ;;
+esac
+
+exit 0

@@ -1,0 +1,39 @@
+#!/bin/sh
+# Git hook: pre-commit
+# Checks for security issues before committing.
+
+echo "Running pre-commit security checks..."
+
+# Block .env files
+STAGED_FILES=$(git diff --cached --name-only)
+
+if echo "$STAGED_FILES" | grep -qE "^\.env$|^\.env\.[^e]|secrets\.json|credentials\.json"; then
+  echo ""
+  echo "ERROR: Attempting to commit a secrets/credentials file!"
+  echo "These files contain sensitive data and must NOT be committed."
+  echo ""
+  echo "Add these to .gitignore and remove them from staging:"
+  echo "  git reset HEAD <file>"
+  echo ""
+  exit 1
+fi
+
+# Warn about hardcoded secrets in staged files
+PATTERNS="password\s*=\s*['\"][^'\"]{8,}|api_key\s*=\s*['\"][^'\"]{8,}|secret\s*=\s*['\"][^'\"]{8,}|token\s*=\s*['\"][^'\"]{8,}"
+for FILE in $STAGED_FILES; do
+  if [ -f "$FILE" ]; then
+    EXT="${FILE##*.}"
+    if echo "py js ts json yaml yml" | grep -qw "$EXT"; then
+      if grep -qiE "$PATTERNS" "$FILE" 2>/dev/null; then
+        echo ""
+        echo "WARNING: Possible hardcoded secret in $FILE"
+        echo "Please review before committing."
+        echo ""
+        # Warning only, not blocking (developer may have false positives)
+      fi
+    fi
+  fi
+done
+
+echo "Pre-commit checks passed."
+exit 0
