@@ -19,8 +19,8 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_expiration_minutes: int = 60
 
-    # OpenAI
-    api_key_openai: str = ""
+    # Gemini
+    api_key_gemini: str = ""
 
     # Encryption
     encryption_key: str = ""

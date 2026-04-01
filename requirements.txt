@@ -17,7 +17,7 @@ python-multipart==0.0.20
 cryptography==44.0.0
 
 # AI / ML
-openai==1.58.1
+google-genai==1.12.1
 numpy==2.2.1
 pandas==2.2.3
 

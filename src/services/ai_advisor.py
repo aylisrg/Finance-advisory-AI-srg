@@ -14,7 +14,7 @@ class AdvisoryResponse:
 
 
 class AIAdvisor:
-    """AI-powered financial advisory service using OpenAI."""
+    """AI-powered financial advisory service using Google Gemini."""
 
     SYSTEM_PROMPT = (
         "You are a knowledgeable financial advisor AI. Provide clear, actionable financial "
@@ -25,18 +25,18 @@ class AIAdvisor:
 
     def __init__(self):
         settings = get_settings()
-        self.api_key = settings.api_key_openai
+        self.api_key = settings.api_key_gemini
         self._client = None
 
     def _get_client(self):
         if not self.api_key:
             raise RuntimeError(
-                "OpenAI API key not configured. Set API_KEY_OPENAI environment variable."
+                "Gemini API key not configured. Set API_KEY_GEMINI environment variable."
             )
         if self._client is None:
-            import openai
+            from google import genai
 
-            self._client = openai.AsyncOpenAI(api_key=self.api_key)
+            self._client = genai.Client(api_key=self.api_key)
         return self._client
 
     async def get_advice(
@@ -50,16 +50,11 @@ class AIAdvisor:
 
         try:
             client = self._get_client()
-            response = await client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=[
-                    {"role": "system", "content": self.SYSTEM_PROMPT},
-                    {"role": "user", "content": user_message},
-                ],
-                max_tokens=1000,
-                temperature=0.7,
+            response = await client.aio.models.generate_content(
+                model="gemini-2.0-flash",
+                contents=f"{self.SYSTEM_PROMPT}\n\n{user_message}",
             )
-            advice = response.choices[0].message.content
+            advice = response.text
             return AdvisoryResponse(advice=advice, confidence=0.85)
         except RuntimeError:
             raise
