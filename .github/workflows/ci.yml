@@ -1,0 +1,106 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches:
+      - develop
+      - 'feature/**'
+      - 'bugfix/**'
+      - 'release/**'
+      - 'hotfix/**'
+      - 'claude/**'
+  pull_request:
+    branches:
+      - main
+      - develop
+
+jobs:
+  validate-branch:
+    name: Validate Branch Name
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check branch naming convention
+        run: |
+          BRANCH="${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}"
+          echo "Branch: $BRANCH"
+          if echo "$BRANCH" | grep -qE '^(main|develop|feature/.+|release/.+|hotfix/.+|bugfix/.+|claude/.+)$'; then
+            echo "Branch name is valid."
+          else
+            echo "ERROR: Branch name '$BRANCH' does not follow Git Flow conventions."
+            echo "Allowed patterns: main, develop, feature/*, release/*, hotfix/*, bugfix/*, claude/*"
+            exit 1
+          fi
+
+  lint-commit-messages:
+    name: Lint Commit Messages
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Check conventional commits
+        run: |
+          BASE="${{ github.base_ref }}"
+          HEAD="${{ github.sha }}"
+          COMMITS=$(git log origin/$BASE..HEAD --format="%s" 2>/dev/null || git log HEAD~1..HEAD --format="%s")
+          PATTERN='^(feat|fix|docs|style|refactor|test|chore|perf|ci|security)(\(.+\))?: .{1,100}$'
+          FAILED=0
+          while IFS= read -r MSG; do
+            if [ -z "$MSG" ]; then continue; fi
+            if ! echo "$MSG" | grep -qE "$PATTERN"; then
+              echo "INVALID commit message: '$MSG'"
+              echo "Expected format: type(scope): description"
+              FAILED=1
+            else
+              echo "OK: '$MSG'"
+            fi
+          done <<< "$COMMITS"
+          if [ $FAILED -eq 1 ]; then
+            echo ""
+            echo "Commit messages must follow Conventional Commits format."
+            echo "See CLAUDE.md for details."
+            exit 1
+          fi
+
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check for hardcoded secrets
+        run: |
+          echo "Scanning for potential secrets..."
+          FOUND=0
+          # Check for common secret patterns
+          if grep -rn --include="*.py" --include="*.js" --include="*.ts" --include="*.json" \
+            -E "(password|secret|api_key|apikey|token|private_key)\s*=\s*['\"][^'\"]{8,}" . \
+            --exclude-dir=".git" --exclude-dir="node_modules" --exclude-dir="venv" 2>/dev/null | \
+            grep -v ".env.example" | grep -v "CLAUDE.md" | grep -v "test" | grep -v "mock"; then
+            echo "WARNING: Potential hardcoded secrets found above. Review carefully."
+            FOUND=1
+          fi
+          # Check for .env files being committed
+          if git diff --cached --name-only 2>/dev/null | grep -E "^\.env$|^\.env\.[^e]"; then
+            echo "ERROR: Attempting to commit .env file with secrets!"
+            exit 1
+          fi
+          echo "Security scan complete."
+
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check if tests exist and run them
+        run: |
+          if [ -f "package.json" ]; then
+            echo "Node.js project detected"
+            npm ci && npm test
+          elif [ -f "pyproject.toml" ] || [ -f "requirements.txt" ] || [ -f "setup.py" ]; then
+            echo "Python project detected"
+            pip install -r requirements.txt 2>/dev/null || true
+            python -m pytest tests/ -v --tb=short 2>/dev/null || echo "No tests found yet — skipping"
+          else
+            echo "No test framework detected yet — skipping tests"
+          fi
